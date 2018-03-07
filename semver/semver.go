@@ -24,16 +24,18 @@ import (
 	"strings"
 )
 
+//基本说明
 type Version struct {
-	Major      int64
-	Minor      int64
-	Patch      int64
-	PreRelease PreRelease
-	Metadata   string
+	Major      int64      //主版本
+	Minor      int64      //次版本
+	Patch      int64      //patch
+	PreRelease PreRelease //后续说明-%s
+	Metadata   string     //元数据+%s
 }
 
 type PreRelease string
 
+//切分成两个子串，同时input为最初的
 func splitOff(input *string, delim string) (val string) {
 	parts := strings.SplitN(*input, delim, 2)
 
@@ -45,10 +47,12 @@ func splitOff(input *string, delim string) (val string) {
 	return val
 }
 
+//通过一个string创建version
 func New(version string) *Version {
 	return Must(NewVersion(version))
 }
 
+//新建一个version
 func NewVersion(version string) (*Version, error) {
 	v := Version{}
 
@@ -59,6 +63,7 @@ func NewVersion(version string) (*Version, error) {
 	return &v, nil
 }
 
+//wrapping 带err的脚手架创建version
 // Must is a helper for wrapping NewVersion and will panic if err is not nil.
 func Must(v *Version, err error) *Version {
 	if err != nil {
@@ -67,26 +72,30 @@ func Must(v *Version, err error) *Version {
 	return v
 }
 
+//解析版本号
 // Set parses and updates v from the given version string. Implements flag.Value
 func (v *Version) Set(version string) error {
+	//加号是最后的，从尾部开始解析
 	metadata := splitOff(&version, "+")
+	//通过-解析出preRelease
 	preRelease := PreRelease(splitOff(&version, "-"))
+	//把版本解析成三部分
 	dotParts := strings.SplitN(version, ".", 3)
-
+	//长度不对
 	if len(dotParts) != 3 {
 		return fmt.Errorf("%s is not in dotted-tri format", version)
 	}
-
+	//检测release
 	if err := validateIdentifier(string(preRelease)); err != nil {
 		return fmt.Errorf("failed to validate pre-release: %v", err)
 	}
-
+	//检测metadata
 	if err := validateIdentifier(metadata); err != nil {
 		return fmt.Errorf("failed to validate metadata: %v", err)
 	}
-
+	//解析完成
 	parsed := make([]int64, 3, 3)
-
+	//基础的
 	for i, v := range dotParts[:3] {
 		val, err := strconv.ParseInt(v, 10, 64)
 		parsed[i] = val
@@ -94,7 +103,7 @@ func (v *Version) Set(version string) error {
 			return err
 		}
 	}
-
+	//填充数据
 	v.Metadata = metadata
 	v.PreRelease = preRelease
 	v.Major = parsed[0]
@@ -103,6 +112,7 @@ func (v *Version) Set(version string) error {
 	return nil
 }
 
+//返回version的字符串接口
 func (v Version) String() string {
 	var buffer bytes.Buffer
 
@@ -119,6 +129,7 @@ func (v Version) String() string {
 	return buffer.String()
 }
 
+//??-生成data
 func (v *Version) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var data string
 	if err := unmarshal(&data); err != nil {
@@ -127,10 +138,12 @@ func (v *Version) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return v.Set(data)
 }
 
+//json化
 func (v Version) MarshalJSON() ([]byte, error) {
 	return []byte(`"` + v.String() + `"`), nil
 }
 
+//通过json解析成版本号
 func (v *Version) UnmarshalJSON(data []byte) error {
 	l := len(data)
 	if l == 0 || string(data) == `""` {
@@ -142,6 +155,7 @@ func (v *Version) UnmarshalJSON(data []byte) error {
 	return v.Set(string(data[1 : l-1]))
 }
 
+//比较数据
 // Compare tests if v is less than, equal to, or greater than versionB,
 // returning -1, 0, or +1 respectively.
 func (v Version) Compare(versionB Version) int {
@@ -161,6 +175,7 @@ func (v Version) LessThan(versionB Version) bool {
 	return v.Compare(versionB) < 0
 }
 
+//返回slice
 // Slice converts the comparable parts of the semver into a slice of integers.
 func (v Version) Slice() []int64 {
 	return []int64{v.Major, v.Minor, v.Patch}
@@ -171,6 +186,7 @@ func (p PreRelease) Slice() []string {
 	return strings.Split(preRelease, ".")
 }
 
+//比较prerelesecompare
 func preReleaseCompare(versionA Version, versionB Version) int {
 	a := versionA.PreRelease
 	b := versionB.PreRelease
@@ -187,6 +203,7 @@ func preReleaseCompare(versionA Version, versionB Version) int {
 	return recursivePreReleaseCompare(a.Slice(), b.Slice())
 }
 
+//递归比较版本
 func recursiveCompare(versionA []int64, versionB []int64) int {
 	if len(versionA) == 0 {
 		return 0
@@ -204,6 +221,7 @@ func recursiveCompare(versionA []int64, versionB []int64) int {
 	return recursiveCompare(versionA[1:], versionB[1:])
 }
 
+//比较pre release compare
 func recursivePreReleaseCompare(versionA []string, versionB []string) int {
 	// A larger set of pre-release fields has a higher precedence than a smaller set,
 	// if all of the preceding identifiers are equal.
@@ -259,6 +277,7 @@ func recursivePreReleaseCompare(versionA []string, versionB []string) int {
 	return recursivePreReleaseCompare(versionA[1:], versionB[1:])
 }
 
+//增加大版本
 // BumpMajor increments the Major field by 1 and resets all other fields to their default values
 func (v *Version) BumpMajor() {
 	v.Major += 1
@@ -268,6 +287,7 @@ func (v *Version) BumpMajor() {
 	v.Metadata = ""
 }
 
+//增加小版本
 // BumpMinor increments the Minor field by 1 and resets all other fields to their default values
 func (v *Version) BumpMinor() {
 	v.Minor += 1
@@ -276,6 +296,7 @@ func (v *Version) BumpMinor() {
 	v.Metadata = ""
 }
 
+//增加patch
 // BumpPatch increments the Patch field by 1 and resets all other fields to their default values
 func (v *Version) BumpPatch() {
 	v.Patch += 1
@@ -283,6 +304,7 @@ func (v *Version) BumpPatch() {
 	v.Metadata = ""
 }
 
+//json检测
 // validateIdentifier makes sure the provided identifier satisfies semver spec
 func validateIdentifier(id string) error {
 	if id != "" && !reIdentifier.MatchString(id) {
@@ -291,6 +313,7 @@ func validateIdentifier(id string) error {
 	return nil
 }
 
+//基本的匹配
 // reIdentifier is a regular expression used to check that pre-release and metadata
 // identifiers satisfy the spec requirements
 var reIdentifier = regexp.MustCompile(`^[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*$`)

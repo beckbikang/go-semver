@@ -18,6 +18,9 @@ import (
 	"sort"
 )
 
+/**
+实现排序
+**/
 type Versions []*Version
 
 func (s Versions) Len() int {
@@ -32,6 +35,7 @@ func (s Versions) Less(i, j int) bool {
 	return s[i].LessThan(*s[j])
 }
 
+//排序
 // Sort sorts the given slice of Version
 func Sort(versions []*Version) {
 	sort.Sort(Versions(versions))
